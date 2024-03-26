@@ -287,7 +287,7 @@ function setup() {
     echo "function setup"    
 
     # TODO Install required packages with APT     
-    if ! install_with_apt "gdebi" || ! install_with_apt "make" || ! install_with_apt "wget" || ! install_with_apt "curl" || ! install_with_apt "default-jre"; then
+    if ! install_with_apt "gdebi" || ! install_with_apt "make" || ! install_with_apt "wget" || ! install_with_apt "curl" || ! install_with_apt "default-jre" || ! install_with_apt "ufw"; then
         handle_error "Could not install required packages"
     fi
 
@@ -312,9 +312,32 @@ function main() {
         handle_error "No argument specified"
     fi
 
-    if [[ "$1" == "setup" ]]; then
-        setup
-    fi
+    case "$1" in
+        setup)
+            setup
+            ;;
+        minecraft)
+            if [[ -z "$2" ]]; then
+                handle_error "No argument specified"
+            fi
+            case "$2" in
+                install)
+                    install_package "minecraft"
+                    ;;
+                test)
+                    test_minecraft
+                    ;;
+                uninstall)
+                    uninstall_minecraft
+                    ;;
+                *)
+                    handle_error "Invalid argument"
+                    ;;
+            esac
+        *)
+            handle_error "Invalid argument"
+            ;;
+    esac
 
     # TODO use a switch statement to execute
 
