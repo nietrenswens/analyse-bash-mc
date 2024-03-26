@@ -284,11 +284,14 @@ function remove() {
 function test_minecraft() {
     # Do NOT remove next line!
     echo "function test_minecraft"
-    if [ -e "$HOME/.minecraft/launcher_log*" ]; then
-        rm -rf $HOME/.minecraft/launcher_log*
+    if ! rm -rf $HOME/.minecraft/launcher_log*; then
+        handle_error "Could not remove old minecraft logs"
     fi
     # TODO Start minecraft 
-    minecraft-launcher &
+    if ! minecraft-launcher &;
+    then
+        handle_error "Could not start minecraft"
+    fi
     minecraft_pid=$!
     # TODO Check if minecraft is working correctly
         # e.g. by checking the logfile
