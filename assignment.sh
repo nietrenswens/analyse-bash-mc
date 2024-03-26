@@ -294,7 +294,7 @@ function test_minecraft() {
         # e.g. by checking the logfile
     echo "Waiting 10 seconds for minecraft to start"
     sleep 10
-    if [ -e "$HOME/.minecraft/launcher_log*" ]; then
+    if [ "$(find "$HOME/.minecraft" -type f -exec grep -l "launcher_log" {} +)" ]; then
         echo "Minecraft is working correctly"
     else
         handle_error "Minecraft is not working correctly" "kill -9 $minecraft_pid"
