@@ -292,8 +292,8 @@ function test_minecraft() {
     minecraft_pid=$!
     # TODO Check if minecraft is working correctly
         # e.g. by checking the logfile
-    echo "Waiting 10 seconds for minecraft to start"
-    sleep 10
+    echo "Waiting 30 seconds for minecraft to start"
+    sleep 30
     if [ "$(find "$HOME/.minecraft" -type f -exec grep -l "launcher_log" {} +)" ]; then
         echo "Minecraft is working correctly"
     else
