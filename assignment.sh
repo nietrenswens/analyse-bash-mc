@@ -284,15 +284,35 @@ function remove() {
 function test_minecraft() {
     # Do NOT remove next line!
     echo "function test_minecraft"
-
+    if [ -e "~/.minecraft/launcher_log*" ]; then
+        rm -rf ~/.minecraft/launcher_log*
+    fi
     # TODO Start minecraft 
-    minecraft-launcher    
+    minecraft-launcher &
+    minecraft_pid=$!
     # TODO Check if minecraft is working correctly
         # e.g. by checking the logfile
-        
+    if [ -e "~/.minecraft/launcher_log*" ]; then
+        echo "Minecraft is working correctly"
+    else
+        handle_error "Minecraft is not working correctly" "kill -9 $minecraft_pid"
+    fi
     # TODO Stop minecraft after testing
         # use the kill signal only if minecraft canNOT be stopped normally
-
+    # Check if the process is still running, p 
+    if ps -p $minecraft_pid > /dev/null; then
+        # If it's still running, send SIGTERM to gracefully stop it
+        kill $minecraft_pid &
+        echo "Attempting to stop minecraft gracefully"
+    fi
+    # Wait for the process to stop
+    echo "Waiting 10 seconds for minecraft to stop"
+    sleep 10
+    # If the process is still running, send SIGKILL to forcefully stop it
+    if ps -p $minecraft_pid > /dev/null; then
+        kill -9 $minecraft_pid
+        echo "Forcibly stopping minecraft"
+    fi
 }
 
 function test_spigotserver() {
