@@ -230,7 +230,7 @@ function uninstall_minecraft {
     # TODO if something goes wrong then call function handle_error
     # check if minecraft is installed
     if dpkg -s minecraft-launcher >/dev/null 2>&1; then
-        minecraft-launcher --clean
+        # minecraft-launcher --clean
         sudo apt remove -y minecraft-launcher
     else
         handle_error "minecraft-launcher is not installed"
@@ -288,8 +288,7 @@ function test_minecraft() {
         handle_error "Could not remove old minecraft logs"
     fi
     # TODO Start minecraft 
-    if ! minecraft-launcher &;
-    then
+    if ! minecraft-launcher & ; then
         handle_error "Could not start minecraft"
     fi
     minecraft_pid=$!
