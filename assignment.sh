@@ -226,7 +226,7 @@ function uninstall_minecraft {
         rm -rf "$INSTALL_DIR/minecraft"
     else
         # Not handling this as an error, as the package might still be installed
-        echo "Minecraft installation directory does not exist"
+        echo "Minecraft installation directory does not exist. Still attempting to uninstall the package."
     fi
 
     # check if minecraft is installed
@@ -234,7 +234,7 @@ function uninstall_minecraft {
         # minecraft-launcher --clean
         sudo apt remove -y minecraft-launcher
     else
-        handle_error "minecraft-launcher is not installed"
+        handle_error "minecraft-launcher is not installed. Aborting uninstallation."
     fi
     echo "Minecraft uninstalled successfully"
 }
@@ -293,12 +293,16 @@ function test_minecraft() {
     minecraft_pid=$!
     # TODO Check if minecraft is working correctly
         # e.g. by checking the logfile
-    echo "Waiting 30 seconds for minecraft to start"
-    sleep 30
-    if [ "$(find "$HOME/.minecraft" -type f -exec grep -l "launcher_log" {} +)" ]; then
-        echo "Minecraft is working correctly"
+    echo "Waiting 15 seconds for minecraft to start"
+    sleep 15
+    if [ -e "$HOME/.minecraft/launcher_log.txt" ]; then
+        if grep -q "Action finalized: vortex.data.microsoft.com" "$HOME/.minecraft/launcher_log.txt"; then
+            echo "Minecraft is working correctly"
+        else
+            handle_error "Forcibly stopping minecraft... Minecraft is not working correctly" "kill -9 $minecraft_pid"
+        fi
     else
-        handle_error "Minecraft is not working correctly" "kill -9 $minecraft_pid"
+        handle_error "Forcibly stopping minecraft... Minecraft is not working correctly" "kill -9 $minecraft_pid"
     fi
     # TODO Stop minecraft after testing
         # use the kill signal only if minecraft canNOT be stopped normally
@@ -314,7 +318,7 @@ function test_minecraft() {
     # If the process is still running, send SIGKILL to forcefully stop it
     if ps -p $minecraft_pid > /dev/null; then
         kill -9 $minecraft_pid
-        echo "Forcibly stopping minecraft"
+        handle_error "Forcibly stopping minecraft... Minecraft is not working correctly"
     fi
 }
 
