@@ -284,8 +284,8 @@ function remove() {
 function test_minecraft() {
     # Do NOT remove next line!
     echo "function test_minecraft"
-    if [ -e "~/.minecraft/launcher_log*" ]; then
-        rm -rf ~/.minecraft/launcher_log*
+    if [ -e "$HOME/.minecraft/launcher_log*" ]; then
+        rm -rf $HOME/.minecraft/launcher_log*
     fi
     # TODO Start minecraft 
     minecraft-launcher &
@@ -294,7 +294,7 @@ function test_minecraft() {
         # e.g. by checking the logfile
     echo "Waiting 10 seconds for minecraft to start"
     sleep 10
-    if [ -e "~/.minecraft/launcher_log*" ]; then
+    if [ -e "$HOME/.minecraft/launcher_log*" ]; then
         echo "Minecraft is working correctly"
     else
         handle_error "Minecraft is not working correctly" "kill -9 $minecraft_pid"
