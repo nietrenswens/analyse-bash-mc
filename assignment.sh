@@ -297,20 +297,24 @@ function test_minecraft() {
     sleep 15
     if [ -e "$HOME/.minecraft/launcher_log.txt" ]; then
         if grep -q "Action finalized: vortex.data.microsoft.com" "$HOME/.minecraft/launcher_log.txt"; then
-            echo "Minecraft is working correctly"
+            echo "Correct minecraft log found..."
         else
             handle_error "Forcibly stopping minecraft... Minecraft is not working correctly" "kill -9 $minecraft_pid"
         fi
     else
         handle_error "Forcibly stopping minecraft... Minecraft is not working correctly" "kill -9 $minecraft_pid"
     fi
+
     # TODO Stop minecraft after testing
         # use the kill signal only if minecraft canNOT be stopped normally
     # Check if the process is still running, p 
     if ps -p $minecraft_pid > /dev/null; then
         # If it's still running, send SIGTERM to gracefully stop it
+        echo "Minecraft seems to be working correctly, stopping it..."
         kill $minecraft_pid &
         echo "Attempting to stop minecraft gracefully"
+    else
+        handle_error "Minecraft is not running and thus not working correctly" kill -9 $minecraft_pid
     fi
     # Wait for the process to stop
     echo "Waiting 10 seconds for minecraft to stop"
@@ -320,6 +324,9 @@ function test_minecraft() {
         kill -9 $minecraft_pid
         handle_error "Forcibly stopping minecraft... Minecraft is not working correctly"
     fi
+    echo "Minecraft stopped successfully"
+    echo "Test completed successfully"
+    echo "Minecraft is working correctly"
 }
 
 function test_spigotserver() {
