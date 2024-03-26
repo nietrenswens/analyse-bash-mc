@@ -334,7 +334,6 @@ function main() {
                     handle_error "Invalid argument"
                     ;;
             esac
-        *)
             handle_error "Invalid argument"
             ;;
     esac
