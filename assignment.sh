@@ -225,9 +225,10 @@ function uninstall_minecraft {
     if [ -d "$INSTALL_DIR/minecraft" ]; then
         rm -rf "$INSTALL_DIR/minecraft"
     else
-        handle_error "Minecraft installation directory does not exist"
+        # Not handling this as an error, as the package might still be installed
+        echo "Minecraft installation directory does not exist"
     fi
-    # TODO if something goes wrong then call function handle_error
+
     # check if minecraft is installed
     if dpkg -s minecraft-launcher >/dev/null 2>&1; then
         # minecraft-launcher --clean
@@ -235,7 +236,7 @@ function uninstall_minecraft {
     else
         handle_error "minecraft-launcher is not installed"
     fi
-
+    echo "Minecraft uninstalled successfully"
 }
 
 # TODO complete the implementation of this function
