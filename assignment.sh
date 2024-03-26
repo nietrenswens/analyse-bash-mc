@@ -58,7 +58,7 @@ function install_package() {
         # BuildTools (https://hub.spigotmc.org/jenkins/job/BuildTools/)
     
     # gdebi (https://manpages.debian.org/buster/gdebi-core/gdebi.1.en.html)
-    if ! gdebi -version || ! wget --version || ! make --version; then
+    if ! gdebi --version > /dev/null || ! wget --version > /dev/null || ! make --version > /dev/null; then
         handle_error "Missing dependencies, make sure to run the setup first"
     fi
 
@@ -82,13 +82,18 @@ function install_package() {
         # TODO SPIGOTSERVER 
         # Copy spigotstart.sh to ${HOME}/apps/spigotserver and provide the user with execute permission
         # spigotserver will be stored into ${HOME}/apps/spigotserver
-    if [[ "$package" == "spigotserver" ]]; then  
+    if [[ "$package" == "minecraft" ]]; then  
         # TODO MINECRAFT 
         # Download minecraft.deb and install it with gdebi\
 
         if [ -d "$INSTALL_DIR/minecraft" ]; then
             handle_error "Minecraft installation directory already exists."
         fi
+         if dpkg -s minecraft-launcher >/dev/null 2>&1; then
+            handle_error "minecraft-launcher is already installed"
+        fi
+
+        # If minecraft has not been installed yet, create the installation directory
         if ! mkdir "$INSTALL_DIR/minecraft"; then
             handle_error "Could not create Minecraft installation directory."
         fi
@@ -98,7 +103,7 @@ function install_package() {
         if ! wget -O "$INSTALL_DIR/minecraft/minecraft.deb" "$MINECRAFT_URL"; then
             handle_error "Could not download Minecraft installation file" "rollback_minecraft"
         fi
-        if ! gdebi -n "$INSTALL_DIR/minecraft/minecraft.deb"; then
+        if ! sudo gdebi -n "$INSTALL_DIR/minecraft/minecraft.deb"; then
             handle_error "Could not install Minecraft" "rollback_minecraft"
         fi
         echo "Minecraft installed successfully."
@@ -161,7 +166,7 @@ function handle_error() {
     # Make sure NOT to use empty argument values
     
     # Check if follow up action is passed as argument
-    if [[ -z "$2" ]]; then
+    if [[ -n "$2" ]]; then
         $2
     fi
 
@@ -177,11 +182,23 @@ function handle_error() {
 
 # TODO complete the implementation of this function
 # Make sure to use sudo only if needed
-function rollback_spigotserver() {
+function rollback_minecraft() {
     # Do NOT remove next line!
     echo "function rollback_minecraft"
 
-    # TODO if something goes wrong then call function handle_error
+    # if something goes wrong then call function handle_error
+    # check if minecraft is installed
+    if dpkg -s minecraft-launcher >/dev/null 2>&1; then
+        minecraft-launcher --clean
+        sudo apt remove -y minecraft-launcher
+    else
+        echo "minecraft-launcher is not installed, disregarding minecraft uninstallation rollback step"
+    fi
+    
+
+    if [ -d "$INSTALL_DIR/minecraft" ]; then
+        rm -rf "$INSTALL_DIR/minecraft"
+    fi
 
 }
 
@@ -205,8 +222,19 @@ function uninstall_minecraft {
     echo "function uninstall_minecraft"  
 
     # TODO remove the directory containing minecraft 
-
+    if [ -d "$INSTALL_DIR/minecraft" ]; then
+        rm -rf "$INSTALL_DIR/minecraft"
+    else
+        handle_error "Minecraft installation directory does not exist"
+    fi
     # TODO if something goes wrong then call function handle_error
+    # check if minecraft is installed
+    if dpkg -s minecraft-launcher >/dev/null 2>&1; then
+        minecraft-launcher --clean
+        sudo apt remove -y minecraft-launcher
+    else
+        handle_error "minecraft-launcher is not installed"
+    fi
 
 }
 
@@ -258,10 +286,10 @@ function test_minecraft() {
     echo "function test_minecraft"
 
     # TODO Start minecraft 
-
+    minecraft-launcher    
     # TODO Check if minecraft is working correctly
         # e.g. by checking the logfile
-
+        
     # TODO Stop minecraft after testing
         # use the kill signal only if minecraft canNOT be stopped normally
 
@@ -321,20 +349,22 @@ function main() {
                 handle_error "No argument specified"
             fi
             case "$2" in
-                install)
+                --install)
                     install_package "minecraft"
                     ;;
-                test)
+                --test)
                     test_minecraft
                     ;;
-                uninstall)
+                --uninstall)
                     uninstall_minecraft
                     ;;
                 *)
                     handle_error "Invalid argument"
                     ;;
             esac
-            handle_error "Invalid argument"
+            ;;
+        *)
+            handle_error "Invalid argument. Valid arguments are: setup, minecraft, spigot"
             ;;
     esac
 
