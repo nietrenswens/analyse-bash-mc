@@ -288,9 +288,7 @@ function test_minecraft() {
         handle_error "Could not remove old minecraft logs"
     fi
     # TODO Start minecraft 
-    if ! minecraft-launcher & ; then
-        handle_error "Could not start minecraft"
-    fi
+    handle_error "Could not start minecraft"
     minecraft_pid=$!
     # TODO Check if minecraft is working correctly
         # e.g. by checking the logfile
