@@ -227,7 +227,10 @@ function configure_spigotserver() {
         handle_error "Could not change gamemode to creative" rollback_spigotserver
     fi
     # TODO restart the spigot service
-
+    if ! sudo systemctl restart spigot; then
+        handle_error "Could not restart spigot service" rollback_spigotserver
+    fi
+    echo "Spigotserver configured successfully"
     # TODO if something goes wrong then call function handle_error
 
 }
@@ -239,7 +242,7 @@ function create_spigotservice() {
     echo "function create_spigotservice"
     
     # TODO copy spigot.service to /etc/systemd/system/spigot.service
-    if ! cp spigot.service /etc/systemd/system/spigot.service; then
+    if ! sudo cp spigot.service /etc/systemd/system/spigot.service; then
         handle_error "Could not copy spigot.service to /etc/systemd/system" "rollback_spigotservice"
     fi
 
@@ -321,10 +324,10 @@ function rollback_spigotserver {
         fi
     fi
     if [ -f "/etc/systemd/system/spigot.service" ]; then
-        if ! systemctl disable spigot; then
+        if ! sudo systemctl disable spigot; then
             echo "Unable to disable spigot service, please disable it manually."
         fi
-        if ! rm -rf "/etc/systemd/system/spigot.service"; then
+        if ! sudo rm -rf "/etc/systemd/system/spigot.service"; then
             echo "Unable to remove /etc/systemd/system/spigot.service, please remove it manually."
         fi
     fi
@@ -398,10 +401,10 @@ function uninstall_spigotservice {
     # TODO if something goes wrong then call function handle_error
     echo "Uninstalling spigot service..."
     if [ -f "/etc/systemd/system/spigot.service" ]; then
-        if ! systemctl disable spigot; then
+        if ! sudo systemctl disable spigot; then
             echo "Unable to disable spigot service, please disable it manually."
         fi
-        if ! rm -rf "/etc/systemd/system/spigot.service"; then
+        if ! sudo rm -rf "/etc/systemd/system/spigot.service"; then
             echo "Unable to remove /etc/systemd/system/spigot.service, please remove it manually."
         fi
     fi
@@ -428,7 +431,7 @@ function setup_check() {
     if [[ ! -d "$INSTALL_DIR" ]]; then
         handle_error "File structure is missing. Please run the setup first."
     fi
-    if ! gdebi --version > /dev/null || ! wget --version > /dev/null || ! make --version > /dev/null || ! curl --version > /dev/null || ! dpkg -s openjdk-17-jre >/dev/null 2>&1 || ! ufw --version > /dev/null; then
+    if ! gdebi --version > /dev/null || ! wget --version > /dev/null || ! make --version > /dev/null || ! curl --version > /dev/null || ! dpkg -s openjdk-17-jre >/dev/null 2>&1 || ! dpkg -s ufw >/dev/null 2>&1; then
         handle_error "Some dependencies are missing.  Please run the setup first."
     fi
 }
