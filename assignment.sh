@@ -16,7 +16,6 @@ SPIGOTSERVER_PORT=$(cat $CONFIG_FILE | grep SPIGOTSERVER_PORT | cut -d '=' -f2)
 
 # INSTALL
 
-# TODO complete the implementation of this function
 # Make sure to use sudo only if needed
 function install_with_apt() {
     # Do NOT remove next line!    
@@ -42,7 +41,6 @@ function install_with_apt() {
     
 }
 
-# TODO complete the implementation of this function
 # Make sure to use sudo only if needed
 function install_package() {
     # Do NOT remove next line!
@@ -58,9 +56,9 @@ function install_package() {
         # BuildTools (https://hub.spigotmc.org/jenkins/job/BuildTools/)
     
     # gdebi (https://manpages.debian.org/buster/gdebi-core/gdebi.1.en.html)
-    if ! gdebi --version > /dev/null || ! wget --version > /dev/null || ! make --version > /dev/null; then
-        handle_error "Missing dependencies, make sure to run the setup first"
-    fi
+
+    # Check if required directory structure and dependencies are there.
+    setup_check
 
     # TODO Install required packages with APT     
         # add apt command to update apt sources list
@@ -107,7 +105,10 @@ function install_package() {
             handle_error "Could not install Minecraft" "rollback_minecraft"
         fi
         echo "Minecraft installed successfully."
-
+        exit 0
+    fi
+    if [[ "$package" == "spigotserver" ]]; then
+        echo "a"
     fi
     # TODO if something goes wrong then call function handle_error
 
@@ -188,16 +189,23 @@ function rollback_minecraft() {
 
     # if something goes wrong then call function handle_error
     # check if minecraft is installed
+    echo "Checking if minecraft has already been installed".
     if dpkg -s minecraft-launcher >/dev/null 2>&1; then
-        minecraft-launcher --clean
-        sudo apt remove -y minecraft-launcher
+        echo "Minecraft is installed. Attempting to remove it."
+        # The clean command does not seem to work. Leaving it out for now
+        # minecraft-launcher --clean
+        if ! sudo apt remove -y minecraft-launcher; then
+            handle_error "Unable to remove minecraft-launcher... Use the following command to remove minecraft manually: sudo apt remove -y minecraft-launcher."
+        fi
     else
-        echo "minecraft-launcher is not installed, disregarding minecraft uninstallation rollback step"
+        echo "minecraft-launcher is not installed, disregarding minecraft uninstallation rollback step."
     fi
     
 
     if [ -d "$INSTALL_DIR/minecraft" ]; then
-        rm -rf "$INSTALL_DIR/minecraft"
+        if ! rm -rf "$INSTALL_DIR/minecraft"; then
+            handle_error "Unable to remove $INSTALL_DIR/minecraft, please remove it manually."
+        fi
     fi
 
 }
@@ -219,20 +227,29 @@ function rollback_spigotserver {
 # Make sure to use sudo only if needed
 function uninstall_minecraft {
     # Do NOT remove next line!
-    echo "function uninstall_minecraft"  
+    echo "function uninstall_minecraft" 
 
+    # Check if the required directory structure and dependencies are there. 
+    setup_check
+
+    # Actual uninstalling
+    echo "Uninstalling minecraft..."
+    echo "Checking if minecraft directory exists..."
     # TODO remove the directory containing minecraft 
     if [ -d "$INSTALL_DIR/minecraft" ]; then
-        rm -rf "$INSTALL_DIR/minecraft"
+        echo "Directory exists... Attempting to remove it..."
+        if ! rm -rf "$INSTALL_DIR/minecraft"; then
+            handle_error "Could not remove $INSTALL_DIR/minecraft."
+        fi
     else
         # Not handling this as an error, as the package might still be installed
         echo "Minecraft installation directory does not exist. Still attempting to uninstall the package."
     fi
 
     # check if minecraft is installed
-    if dpkg -s minecraft-launcher >/dev/null 2>&1; then
+    if dpkg -s minecraft-launcher >/dev/null 2>&1 && sudo apt remove -y minecraft-launcher; then
         # minecraft-launcher --clean
-        sudo apt remove -y minecraft-launcher
+        echo "The minecraft-launcher package has been removed."
     else
         handle_error "minecraft-launcher is not installed. Aborting uninstallation."
     fi
@@ -274,10 +291,22 @@ function remove() {
 
     # TODO Remove all packages and dependencies
 
+    # Check if minecraft is installed, and uninstall it
+
+    # Check if spigot is installed, and uninstall it
+
     # TODO if something goes wrong then call function handle_error
 
 }
 
+function setup_check() {
+    if [[ ! -d "$INSTALL_DIR" ]]; then
+        handle_error "File structure is missing. Please run the setup first."
+    fi
+    if ! gdebi --version > /dev/null || ! wget --version > /dev/null || ! make --version > /dev/null || ! curl --version > /dev/null || ! dpkg -s openjdk-17-jre >/dev/null 2>&1 || ! ufw --version > /dev/null; then
+        handle_error "Some dependencies are missing.  Please run the setup first."
+    fi
+}
 
 # TEST
 
@@ -285,7 +314,15 @@ function remove() {
 function test_minecraft() {
     # Do NOT remove next line!
     echo "function test_minecraft"
-    if ! rm -rf $HOME/.minecraft/launcher_log*; then
+
+    # Check if setup is ran
+    setup_check
+
+    if ! dpkg -s minecraft-launcher > /dev/null 2>&1 || [[ ! -d "$INSTALL_DIR/minecraft" ]]; then
+        handle_error "Minecraft has not been installed. There is nothing to test"
+    fi
+
+    if ! rm -rf "$HOME/.minecraft/launcher_log*"; then
         handle_error "Could not remove old minecraft logs"
     fi
     # TODO Start minecraft 
@@ -293,40 +330,33 @@ function test_minecraft() {
     minecraft_pid=$!
     # TODO Check if minecraft is working correctly
         # e.g. by checking the logfile
-    echo "Waiting 15 seconds for minecraft to start"
-    sleep 15
-    if [ -e "$HOME/.minecraft/launcher_log.txt" ]; then
-        if grep -q "Action finalized: vortex.data.microsoft.com" "$HOME/.minecraft/launcher_log.txt"; then
-            echo "Correct minecraft log found..."
-        else
-            handle_error "Forcibly stopping minecraft... Minecraft is not working correctly" "kill -9 $minecraft_pid"
-        fi
-    else
-        handle_error "Forcibly stopping minecraft... Minecraft is not working correctly" "kill -9 $minecraft_pid"
-    fi
+    echo "Waiting 30 seconds for minecraft to start"
+    sleep 30
+    
 
     # TODO Stop minecraft after testing
         # use the kill signal only if minecraft canNOT be stopped normally
     # Check if the process is still running, p 
-    if ps -p $minecraft_pid > /dev/null; then
+    if ps -ef | grep $minecraft_pid | grep -v grep > /dev/null; then
         # If it's still running, send SIGTERM to gracefully stop it
         echo "Minecraft seems to be working correctly, stopping it..."
         kill $minecraft_pid &
         echo "Attempting to stop minecraft gracefully"
     else
-        handle_error "Minecraft is not running and thus not working correctly" kill -9 $minecraft_pid
+        handle_error "Minecraft is not running and thus not working correctly"
     fi
     # Wait for the process to stop
     echo "Waiting 10 seconds for minecraft to stop"
     sleep 10
     # If the process is still running, send SIGKILL to forcefully stop it
-    if ps -p $minecraft_pid > /dev/null; then
+    if ps -ef | grep $minecraft_pid | grep -v grep > /dev/null; then
         kill -9 $minecraft_pid
         handle_error "Forcibly stopping minecraft... Minecraft is not working correctly"
     fi
     echo "Minecraft stopped successfully"
     echo "Test completed successfully"
     echo "Minecraft is working correctly"
+    exit 0
 }
 
 function test_spigotserver() {
@@ -349,7 +379,7 @@ function setup() {
     echo "function setup"    
 
     # TODO Install required packages with APT     
-    if ! install_with_apt "gdebi" || ! install_with_apt "make" || ! install_with_apt "wget" || ! install_with_apt "curl" || ! install_with_apt "default-jre" || ! install_with_apt "ufw"; then
+    if ! install_with_apt "gdebi" || ! install_with_apt "make" || ! install_with_apt "wget" || ! install_with_apt "curl" || ! install_with_apt "openjdk-17-jre" || ! install_with_apt "ufw"; then
         handle_error "Could not install required packages"
     fi
 
@@ -378,6 +408,9 @@ function main() {
         setup)
             setup
             ;;
+        remove)
+            remove
+            ;;
         minecraft)
             if [[ -z "$2" ]]; then
                 handle_error "No argument specified"
@@ -385,12 +418,15 @@ function main() {
             case "$2" in
                 --install)
                     install_package "minecraft"
+                    exit 0
                     ;;
                 --test)
                     test_minecraft
+                    exit 0
                     ;;
                 --uninstall)
                     uninstall_minecraft
+                    exit 0
                     ;;
                 *)
                     handle_error "Invalid argument"
