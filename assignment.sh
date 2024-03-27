@@ -134,9 +134,9 @@ function install_package() {
         echo "Permissions set successfully. Spigotserver installed successfully."
 
         echo "Starting server to generate server.properties..."
-        if ! java -jar "$INSTALL_DIR/spigotserver/spigot.jar" & ; then
-            handle_error "Unable to start server to generate server.properties" "rollback_spigotserver"
-        fi
+        
+        java -jar "$INSTALL_DIR/spigotserver/spigot.jar" &
+        
         server_pid=$!
         echo "Waiting 5 seconds for server to start"
         sleep 5
