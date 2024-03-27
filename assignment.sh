@@ -455,7 +455,7 @@ function setup_check() {
     if [[ ! -d "$INSTALL_DIR" ]]; then
         handle_error "File structure is missing. Please run the setup first."
     fi
-    if ! gdebi --version > /dev/null || ! wget --version > /dev/null || ! make --version > /dev/null || ! curl --version > /dev/null || ! dpkg -s openjdk-17-jre >/dev/null 2>&1 || ! dpkg -s ufw >/dev/null 2>&1; then
+    if ! gdebi --version > /dev/null || ! wget --version > /dev/null || ! make --version > /dev/null || ! curl --version > /dev/null || ! dpkg -s openjdk-17-jre >/dev/null 2>&1 || ! dpkg -s ufw >/dev/null 2>&1 || ! dpkg -s screen >/dev/null 2>&1; then
         handle_error "Some dependencies are missing.  Please run the setup first."
     fi
 }
@@ -531,7 +531,7 @@ function setup() {
     echo "function setup"    
 
     # TODO Install required packages with APT     
-    if ! install_with_apt "gdebi" || ! install_with_apt "make" || ! install_with_apt "wget" || ! install_with_apt "curl" || ! install_with_apt "openjdk-17-jre" || ! install_with_apt "ufw"; then
+    if ! install_with_apt "gdebi" || ! install_with_apt "make" || ! install_with_apt "wget" || ! install_with_apt "curl" || ! install_with_apt "openjdk-17-jre" || ! install_with_apt "ufw" || ! install_with_apt "screen"; then
         handle_error "Could not install required packages"
     fi
 
