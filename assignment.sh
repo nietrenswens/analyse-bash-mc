@@ -132,6 +132,28 @@ function install_package() {
             handle_error "Unable to set permissions on start script" "rollback_spigotserver"
         fi
         echo "Permissions set successfully. Spigotserver installed successfully."
+
+        echo "Starting server to generate server.properties..."
+        if ! java -jar "$INSTALL_DIR/spigotserver/spigot.jar" &; then
+            handle_error "Unable to start server to generate server.properties" "rollback_spigotserver"
+        fi
+        server_pid=$!
+        echo "Waiting 5 seconds for server to start"
+        sleep 5
+
+        # Check if the process is still running
+        echo "If the server is still running, it will be stopped gracefully."
+        if ps -ef | grep $server_pid | grep -v grep > /dev/null; then
+            # If it's still running, send SIGTERM to gracefully stop it
+            echo "Server seems to be running, stopping it..."
+            if ! kill $server_pid; then
+                kill -9 $server_pid
+                echo "Forcibly stopping server..."
+            else
+                echo "Server stopped gracefully."
+            fi
+        fi
+        
         echo "Creating service..."
         create_spigotservice
         echo "Service created successfully."
@@ -267,17 +289,15 @@ function handle_error() {
 
     # read the arguments from $@
     # Make sure NOT to use empty argument values
-    
-    # Check if follow up action is passed as argument
-    if [[ -n "$2" ]]; then
-        $2
-    fi
-
     # print a specific error message
     if [[ -z "$1" ]]; then
         echo "An error occured"
     else
         echo "$1"
+    fi
+    # Check if follow up action is passed as argument
+    if [[ -n "$2" ]]; then
+        $2
     fi
     # exit this function with an integer value!=0
     exit 1
