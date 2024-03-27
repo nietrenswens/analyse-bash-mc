@@ -118,9 +118,11 @@ function install_package() {
             handle_error "Unable to download buildtools, canceling installation..." "rollback_spigotserver"
         fi
         echo "Compiling server binary..."
-        if ! java -jar "$INSTALL_DIR/spigotserver/BuildTools.jar"; then
+        if ! java -jar "$INSTALL_DIR/spigotserver/BuildTools.jar" --rev latest --output-dir "$INSTALL_DIR/spigotserver" --final-name spigot.jar; then
             handle_error "Unable to compile spigotserver" "rollback_spigotserver"
         fi
+        echo "Cleaning up buildtools..."
+        cleanup_buildtools
         echo "Binary compiled successfully. Copying start script..." 
         if ! cp spigotstart.sh "$INSTALL_DIR/spigotserver"; then
             handle_error "Unable to copy start script" "rollback_spigotserver"
@@ -130,11 +132,11 @@ function install_package() {
             handle_error "Unable to set permissions on start script" "rollback_spigotserver"
         fi
         echo "Permissions set successfully. Spigotserver installed successfully."
-        echo "Moving on to configuring the server..."
-        configure_spigotserver
         echo "Creating service..."
         create_spigotservice
         echo "Service created successfully."
+        echo "Moving on to configuring the server..."
+        configure_spigotserver
         echo "Spigot server installation completed successfully."
         exit 0
 
@@ -145,6 +147,49 @@ function install_package() {
     fi
     # TODO if something goes wrong then call function handle_error
 
+}
+
+function cleanup_buildtools() {
+    if [ -d "BuildData" ]; then
+        if ! rm -rf "BuildData"; then
+            handle_error "Unable to clean up buildtools"
+        fi
+    fi
+    if [ -d "BuildTools" ]; then
+        if ! rm -rf "BuildTools"; then
+            handle_error "Unable to clean up buildtools"
+        fi
+    fi
+    if [ -d "CraftBukkit" ]; then
+        if ! rm -rf "CraftBukkit"; then
+            handle_error "Unable to clean up buildtools"
+        fi
+    fi
+    if [ -d "Bukkit" ]; then
+        if ! rm -rf "Bukkit"; then
+            handle_error "Unable to clean up buildtools"
+        fi
+    fi
+    if [ -d "Spigot" ]; then
+        if ! rm -rf "Spigot"; then
+            handle_error "Unable to clean up buildtools"
+        fi
+    fi
+    if [ -d "work" ]; then
+        if ! rm -rf "work"; then
+            handle_error "Unable to clean up buildtools"
+        fi
+    fi
+    if [ -f "BuildTools.log.txt" ]; then
+        if ! rm -rf "BuildTools.log.txt"; then
+            handle_error "Unable to clean up buildtools"
+        fi
+    fi
+    if [ -d "apache-maven-3.9.6" ]; then
+        if ! rm -rf "apache-maven-3.9.6"; then
+            handle_error "Unable to clean up buildtools"
+        fi
+    fi
 }
 
 
@@ -158,16 +203,29 @@ function configure_spigotserver() {
 
     # TODO Configure Firewall
         # make sure ufw has been installed    
-
+    if ! sudo ufw --version > /dev/null; then
+        handle_error "ufw is not installed" rollback_spigotserver
+    fi
     # TODO allow SSH port with ufw allow OpenSSH
         # use ufw to allow the port that is specified in dev.conf for the Spigot server to accept connections
         # make sure ufw has been enabled
+    if ! sudo ufw allow OpenSSH; then
+        handle_error "Could not allow OpenSSH" rollback_spigotserver
+    fi
+    if ! sudo ufw allow "$SPIGOTSERVER_PORT"; then
+        handle_error "Could not allow port $SPIGOTSERVER_PORT" rollback_spigotserver
+    fi
+    if ! sudo ufw enable; then
+        handle_error "Could not enable ufw" rollback_spigotserver
+    fi
 
     # TODO configure spigotserver to run creative gamemode instead of survival 
         # this can be done by running the sed command on the (automatically generated) file server.properties 
         # (https://minecraft.fandom.com/wiki/Server.properties)
         # with the argument 's/\(gamemode=\)survival/\1creative/'
-
+    if ! sed -i 's/\(gamemode=\)survival/\1creative/' "$INSTALL_DIR/spigotserver/server.properties"; then
+        handle_error "Could not change gamemode to creative" rollback_spigotserver
+    fi
     # TODO restart the spigot service
 
     # TODO if something goes wrong then call function handle_error
@@ -181,10 +239,18 @@ function create_spigotservice() {
     echo "function create_spigotservice"
     
     # TODO copy spigot.service to /etc/systemd/system/spigot.service
+    if ! cp spigot.service /etc/systemd/system/spigot.service; then
+        handle_error "Could not copy spigot.service to /etc/systemd/system" "rollback_spigotservice"
+    fi
 
     # TODO reload the service daemon (systemctl daemon-reload)
+    if ! sudo systemctl daemon-reload; then
+        handle_error "Could not reload the service daemon" "rollback_spigotservice"
+    fi
     # TODO enable the service using systemctl
-
+    if ! sudo systemctl enable spigot; then
+        handle_error "Could not enable the service" "rollback_spigotservice"
+    fi
     # TODO if something goes wrong then call function handle_error
 
 }
@@ -248,7 +314,20 @@ function rollback_minecraft() {
 function rollback_spigotserver {
     # Do NOT remove next line!
     echo "function rollback_spigotserver"
-
+    cleanup_buildtools
+    if [ -d "$INSTALL_DIR/spigotserver" ]; then
+        if ! rm -rf "$INSTALL_DIR/spigotserver"; then
+            echo "Unable to remove $INSTALL_DIR/spigotserver, please remove it manually."
+        fi
+    fi
+    if [ -f "/etc/systemd/system/spigot.service" ]; then
+        if ! systemctl disable spigot; then
+            echo "Unable to disable spigot service, please disable it manually."
+        fi
+        if ! rm -rf "/etc/systemd/system/spigot.service"; then
+            echo "Unable to remove /etc/systemd/system/spigot.service, please remove it manually."
+        fi
+    fi
     # TODO if something goes wrong then call function handle_error
 
 }
@@ -295,9 +374,13 @@ function uninstall_spigotserver {
     # Do NOT remove next line!
     echo "uninstall_spigotserver"  
     
-    # TODO remove the directory containing spigotserver 
-
-    # TODO create a service by calling the function create_spigotservice
+    uninstall_spigotservice
+    echo "Uninstalling spigotserver..."
+    if [ -d "$INSTALL_DIR/spigotserver" ]; then
+        if ! rm -rf "$INSTALL_DIR/spigotserver"; then
+            handle "Unable to remove $INSTALL_DIR/spigotserver, please remove it manually."
+        fi
+    fi
 
     # TODO if something goes wrong then call function handle_error
 
@@ -313,6 +396,15 @@ function uninstall_spigotservice {
     # TODO delete /etc/systemd/system/spigot.service
 
     # TODO if something goes wrong then call function handle_error
+    echo "Uninstalling spigot service..."
+    if [ -f "/etc/systemd/system/spigot.service" ]; then
+        if ! systemctl disable spigot; then
+            echo "Unable to disable spigot service, please disable it manually."
+        fi
+        if ! rm -rf "/etc/systemd/system/spigot.service"; then
+            echo "Unable to remove /etc/systemd/system/spigot.service, please remove it manually."
+        fi
+    fi
     
 }
 
@@ -464,6 +556,23 @@ function main() {
                 *)
                     handle_error "Invalid argument"
                     ;;
+            esac
+            ;;
+        spigotserver)
+            if [[ -z "$2" ]]; then
+                handle_error "No argument specified"
+            fi
+            case "$2" in
+                --install)
+                    install_package "spigotserver"
+                    exit 0
+                    ;;
+                --uninstall)
+                    uninstall_spigotserver
+                    exit 0
+                    ;;
+                *)
+                    handle_error "Invalid argument"
             esac
             ;;
         *)
