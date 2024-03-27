@@ -134,8 +134,10 @@ function install_package() {
         echo "Permissions set successfully. Spigotserver installed successfully."
 
         echo "Starting server to generate server.properties..."
-        
-        java -jar "$INSTALL_DIR/spigotserver/spigot.jar" &
+        current_dir=$(pwd)
+        cd "$INSTALL_DIR/spigotserver"
+
+        ./spigotstart.sh &
         
         server_pid=$!
         echo "Waiting 5 seconds for server to start"
