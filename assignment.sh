@@ -134,29 +134,12 @@ function install_package() {
         echo "Permissions set successfully. Spigotserver installed successfully."
 
         echo "Starting server to generate server.properties..."
-        current_dir=$(pwd)
         cd "$INSTALL_DIR/spigotserver"
 
-        ./spigotstart.sh &
+        ./spigotstart.sh
 
         cd "$current_dir"
         
-        server_pid=$!
-        echo "Waiting 5 seconds for server to start"
-        sleep 5
-
-        # Check if the process is still running
-        echo "If the server is still running, it will be stopped gracefully."
-        if ps -ef | grep $server_pid | grep -v grep > /dev/null; then
-            # If it's still running, send SIGTERM to gracefully stop it
-            echo "Server seems to be running, stopping it..."
-            if ! kill $server_pid; then
-                kill -9 $server_pid
-                echo "Forcibly stopping server..."
-            else
-                echo "Server stopped gracefully."
-            fi
-        fi
         
         echo "Creating service..."
         create_spigotservice
