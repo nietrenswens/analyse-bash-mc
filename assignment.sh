@@ -237,8 +237,13 @@ function configure_spigotserver() {
         handle_error "Could not change gamemode to creative" rollback_spigotserver
     fi
     # TODO restart the spigot service
-    if ! sudo systemctl restart spigot; then
-        handle_error "Could not restart spigot service" rollback_spigotserver
+    if ! sudo systemctl stop spigot; then
+        handle_error "Could not stop spigot service" rollback_spigotserver
+    fi
+    echo "Waiting 10 seconds for spigot to stop"
+    sleep 10
+    if ! sudo systemctl start spigot; then
+        handle_error "Could not start spigot service" rollback_spigotserver
     fi
     echo "Spigotserver configured successfully"
     # TODO if something goes wrong then call function handle_error
