@@ -138,6 +138,8 @@ function install_package() {
         cd "$INSTALL_DIR/spigotserver"
 
         ./spigotstart.sh &
+
+        cd "$current_dir"
         
         server_pid=$!
         echo "Waiting 5 seconds for server to start"
