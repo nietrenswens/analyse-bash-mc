@@ -209,7 +209,7 @@ function configure_spigotserver() {
     # TODO allow SSH port with ufw allow OpenSSH
         # use ufw to allow the port that is specified in dev.conf for the Spigot server to accept connections
         # make sure ufw has been enabled
-    if ! sudo ufw allow OpenSSH; then
+    if ! sudo ufw allow 22/tcp; then
         handle_error "Could not allow OpenSSH" rollback_spigotserver
     fi
     if ! sudo ufw allow "$SPIGOTSERVER_PORT"; then
@@ -317,13 +317,17 @@ function rollback_minecraft() {
 function rollback_spigotserver {
     # Do NOT remove next line!
     echo "function rollback_spigotserver"
+
+    echo "Rolling back..."
     cleanup_buildtools
+    echo "Removing spigotserver..."
     if [ -d "$INSTALL_DIR/spigotserver" ]; then
         if ! rm -rf "$INSTALL_DIR/spigotserver"; then
             echo "Unable to remove $INSTALL_DIR/spigotserver, please remove it manually."
         fi
     fi
     if [ -f "/etc/systemd/system/spigot.service" ]; then
+        echo "Removing spigot service..."
         if ! sudo systemctl disable spigot; then
             echo "Unable to disable spigot service, please disable it manually."
         fi
@@ -331,6 +335,18 @@ function rollback_spigotserver {
             echo "Unable to remove /etc/systemd/system/spigot.service, please remove it manually."
         fi
     fi
+    echo "Rollbacking ufw..."
+    if ! sudo ufw disable; then
+        echo "Unable to disable ufw, please disable it manually."
+    fi
+    if ! sudo ufw delete allow "$SPIGOTSERVER_PORT"; then
+        echo "Unable to remove port $SPIGOTSERVER_PORT from ufw, please remove it manually."
+    fi
+    if ! sudo ufw delete allow 22/tcp; then
+        echo "Unable to remove port 22 from ufw, please remove it manually."
+    fi
+
+    echo "Rollback completed successfully"
     # TODO if something goes wrong then call function handle_error
 
 }
