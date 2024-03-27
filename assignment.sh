@@ -74,16 +74,12 @@ function install_package() {
         # make sure to provide the user with sufficient permissions to this folder
         # make sure to handle every intermediate mistake and rollback if something goes wrong like permission erros and unreachble URL etc.
 
-    # TODO application specific logic
+    #  application specific logic
     # based on the name of the application additional steps might be needed
-
-        # TODO SPIGOTSERVER 
-        # Copy spigotstart.sh to ${HOME}/apps/spigotserver and provide the user with execute permission
-        # spigotserver will be stored into ${HOME}/apps/spigotserver
     if [[ "$package" == "minecraft" ]]; then  
         # TODO MINECRAFT 
         # Download minecraft.deb and install it with gdebi\
-
+        echo "Starting minecraft installation"
         if [ -d "$INSTALL_DIR/minecraft" ]; then
             handle_error "Minecraft installation directory already exists."
         fi
@@ -108,7 +104,44 @@ function install_package() {
         exit 0
     fi
     if [[ "$package" == "spigotserver" ]]; then
-        echo "a"
+        echo "Starting spigot installation"
+        if [ -d "$INSTALL_DIR/spigotserver" ]; then
+            handle_error "Spigotserver installation directory already exists."
+        fi
+        if ! mkdir "$INSTALL_DIR/spigotserver"; then
+            handle_error "Could not create Spigotserver installation directory."
+        fi
+
+        # From here, we might need to rollback
+        echo "Downloading buildtools..."
+        if ! wget -O "$INSTALL_DIR/spigotserver/BuildTools.jar" $BUILDTOOLS_URL; then
+            handle_error "Unable to download buildtools, canceling installation..." "rollback_spigotserver"
+        fi
+        echo "Compiling server binary..."
+        if ! java -jar "$INSTALL_DIR/spigotserver/BuildTools.jar"; then
+            handle_error "Unable to compile spigotserver" "rollback_spigotserver"
+        fi
+        echo "Binary compiled successfully. Copying start script..." 
+        if ! cp spigotstart.sh "$INSTALL_DIR/spigotserver"; then
+            handle_error "Unable to copy start script" "rollback_spigotserver"
+        fi
+        echo "Start script copied successfully. Setting permissions..."
+        if ! chmod +x "$INSTALL_DIR/spigotserver/spigotstart.sh"; then
+            handle_error "Unable to set permissions on start script" "rollback_spigotserver"
+        fi
+        echo "Permissions set successfully. Spigotserver installed successfully."
+        echo "Moving on to configuring the server..."
+        configure_spigotserver
+        echo "Creating service..."
+        create_spigotservice
+        echo "Service created successfully."
+        echo "Spigot server installation completed successfully."
+        exit 0
+
+        # TODO SPIGOTSERVER 
+            # Copy spigotstart.sh to ${HOME}/apps/spigotserver and provide the user with execute permission
+            # spigotserver will be stored into ${HOME}/apps/spigotserver
+        exit 0
     fi
     # TODO if something goes wrong then call function handle_error
 
