@@ -134,6 +134,7 @@ function install_package() {
         echo "Permissions set successfully. Spigotserver installed successfully."
 
         echo "Starting server to generate server.properties..."
+        current_dir=$(pwd)
         cd "$INSTALL_DIR/spigotserver"
 
         ./spigotstart.sh
@@ -252,16 +253,16 @@ function create_spigotservice() {
     
     # TODO copy spigot.service to /etc/systemd/system/spigot.service
     if ! sudo cp spigot.service /etc/systemd/system/spigot.service; then
-        handle_error "Could not copy spigot.service to /etc/systemd/system" "rollback_spigotservice"
+        handle_error "Could not copy spigot.service to /etc/systemd/system" "rollback_spigotserver"
     fi
 
     # TODO reload the service daemon (systemctl daemon-reload)
     if ! sudo systemctl daemon-reload; then
-        handle_error "Could not reload the service daemon" "rollback_spigotservice"
+        handle_error "Could not reload the service daemon" "rollback_spigotserver"
     fi
     # TODO enable the service using systemctl
     if ! sudo systemctl enable spigot; then
-        handle_error "Could not enable the service" "rollback_spigotservice"
+        handle_error "Could not enable the service" "rollback_spigotserver"
     fi
     # TODO if something goes wrong then call function handle_error
 
