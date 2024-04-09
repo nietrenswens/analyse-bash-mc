@@ -5,13 +5,18 @@
 
 # Global variables
 # TODO Define (only) the variables which require global scope
+# Dependencies with their respective 'installation check' command
+declare -A dependencies=(["gdebi"]="gdebi --version" ["wget"]="wget --version" ["make"]="make --version" ["curl"]="gdebi --version" ["openjdk-17-jre"]="dpkg -s openjdk-17-jre" ["ufw"]="dpkg -s ufw" ["screen"]="dpkg -s screen") 
+    # if ! gdebi --version > /dev/null || ! wget --version > /dev/null || ! make --version > /dev/null || ! curl --version > /dev/null || ! dpkg -s openjdk-17-jre >/dev/null 2>&1 || ! dpkg -s ufw >/dev/null 2>&1 || ! dpkg -s screen >/dev/null 2>&1; then
 
 # Defining variables from config
 CONFIG_FILE="dev.conf"
-INSTALL_DIR=$(cat $CONFIG_FILE | grep INSTALL_DIR | cut -d '=' -f2)
-MINECRAFT_URL=$(cat $CONFIG_FILE | grep MINECRAFT_URL | cut -d '=' -f2)
-BUILDTOOLS_URL=$(cat $CONFIG_FILE | grep BUILDTOOLS_URL | cut -d '=' -f2)
-SPIGOTSERVER_PORT=$(cat $CONFIG_FILE | grep SPIGOTSERVER_PORT | cut -d '=' -f2)
+INSTALL_DIR=$(grep INSTALL_DIR "$CONFIG_FILE" | cut -d '=' -f2)
+HOME_DIR="$HOME"
+INSTALL_DIR="${INSTALL_DIR//'$HOME'/$HOME_DIR}"
+MINECRAFT_URL=$(grep MINECRAFT_URL "$CONFIG_FILE" | cut -d '=' -f2)
+BUILDTOOLS_URL=$(grep BUILDTOOLS_URL "$CONFIG_FILE" | cut -d '=' -f2)
+SPIGOTSERVER_PORT=$(grep SPIGOTSERVER_PORT "$CONFIG_FILE" | cut -d '=' -f2)
 
 
 # INSTALL
@@ -51,7 +56,7 @@ function install_package() {
     if [[ -z "$1" ]]; then
         handle_error "No package specified"
     fi
-    package=$1
+    to_install=$1
     # TODO make sure the following dependencies have been installed
         # BuildTools (https://hub.spigotmc.org/jenkins/job/BuildTools/)
     
@@ -76,7 +81,7 @@ function install_package() {
 
     #  application specific logic
     # based on the name of the application additional steps might be needed
-    if [[ "$package" == "minecraft" ]]; then  
+    if [[ "$to_install" == "minecraft" ]]; then  
         # TODO MINECRAFT 
         # Download minecraft.deb and install it with gdebi\
         echo "Starting minecraft installation"
@@ -103,7 +108,7 @@ function install_package() {
         echo "Minecraft installed successfully."
         exit 0
     fi
-    if [[ "$package" == "spigotserver" ]]; then
+    if [[ "$to_install" == "spigotserver" ]]; then
         echo "Starting spigot installation"
         if [ -d "$INSTALL_DIR/spigotserver" ]; then
             handle_error "Spigotserver installation directory already exists."
@@ -118,11 +123,14 @@ function install_package() {
             handle_error "Unable to download buildtools, canceling installation..." "rollback_spigotserver"
         fi
         echo "Compiling server binary..."
+        current_dir=${pwd}
+        cd "$INSTALL_DIR/spigotserver"
         if ! java -jar "$INSTALL_DIR/spigotserver/BuildTools.jar" --rev latest --output-dir "$INSTALL_DIR/spigotserver" --final-name spigot.jar; then
-            handle_error "Unable to compile spigotserver" "rollback_spigotserver"
+            handle_error "Unable to compile spigotserver" "cd $current_dir && rollback_spigotserver"
         fi
         echo "Cleaning up buildtools..."
         cleanup_buildtools
+        cd "$current_dir"
         echo "Binary compiled successfully. Copying start script..." 
         if ! cp spigotstart.sh "$INSTALL_DIR/spigotserver"; then
             handle_error "Unable to copy start script" "rollback_spigotserver"
@@ -142,7 +150,7 @@ function install_package() {
         cd "$current_dir"
         
         echo "Accepting EULA"
-        if ! echo "eula=true" > "$INSTALL_DIR/spigotserver/eula.txt"
+        if ! echo "eula=true" > "$INSTALL_DIR/spigotserver/eula.txt"; then
             handle_error "Unable to accept eula." "rollback_spigotserver"
         fi
         echo "Creating service..."
@@ -230,6 +238,9 @@ function configure_spigotserver() {
         # (https://minecraft.fandom.com/wiki/Server.properties)
         # with the argument 's/\(gamemode=\)survival/\1creative/'
     if ! sed -i 's/\(gamemode=\)survival/\1creative/' "$INSTALL_DIR/spigotserver/server.properties"; then
+        handle_error "Could not change gamemode to creative" rollback_spigotserver
+    fi
+    if ! sed -i "s/\(server-port=\)25565/\1$SPIGOTSERVER_PORT/" "$INSTALL_DIR/spigotserver/server.properties"; then
         handle_error "Could not change gamemode to creative" rollback_spigotserver
     fi
     # TODO restart the spigot service
@@ -340,6 +351,9 @@ function rollback_spigotserver {
         if ! sudo rm -rf "/etc/systemd/system/spigot.service"; then
             echo "Unable to remove /etc/systemd/system/spigot.service, please remove it manually."
         fi
+        if ! sudo systemctl daemon-reload; then
+            echo "Unable to reload system daemon"
+        fi
     fi
     echo "Rollbacking ufw..."
     if ! sudo ufw disable; then
@@ -398,17 +412,18 @@ function uninstall_minecraft {
 function uninstall_spigotserver {
     # Do NOT remove next line!
     echo "uninstall_spigotserver"  
-    
+    if [ ! -d "$INSTALL_DIR/spigotserver" ]; then
+        handle_error "Spigot has not been installed"
+    fi
     uninstall_spigotservice
     echo "Uninstalling spigotserver..."
     if [ -d "$INSTALL_DIR/spigotserver" ]; then
         if ! rm -rf "$INSTALL_DIR/spigotserver"; then
-            handle "Unable to remove $INSTALL_DIR/spigotserver, please remove it manually."
+            handle_error "Unable to remove $INSTALL_DIR/spigotserver, please remove it manually."
         fi
     fi
-
-    # TODO if something goes wrong then call function handle_error
-
+    echo "Spigot server has been uninstalled"
+    exit 0
 }
 
 # TODO complete the implementation of this function
@@ -423,11 +438,18 @@ function uninstall_spigotservice {
     # TODO if something goes wrong then call function handle_error
     echo "Uninstalling spigot service..."
     if [ -f "/etc/systemd/system/spigot.service" ]; then
+        echo "Removing spigot service..."
+        if ! sudo systemctl stop spigot; then
+            handle_error "Unable to disable and remove spigot service and server, please disable it manually. And remove the server manually."
+        fi
         if ! sudo systemctl disable spigot; then
-            echo "Unable to disable spigot service, please disable it manually."
+            handle_error "Unable to disable and remove spigot service and server, please disable it manually. And remove the server manually."
         fi
         if ! sudo rm -rf "/etc/systemd/system/spigot.service"; then
-            echo "Unable to remove /etc/systemd/system/spigot.service, please remove it manually."
+            handle_error "Unable to disable and remove spigot service and server, please disable it manually. And remove the server manually."
+        fi
+        if ! sudo systemctl daemon-reload; then
+            handle_error "Unable to disable and remove spigot service and server, please disable it manually. And remove the server manually."
         fi
     fi
     
@@ -440,22 +462,45 @@ function remove() {
     echo "function remove"
 
     # TODO Remove all packages and dependencies
+    echo "Removing dependencies"
+    for package in ${!dependencies[@]}; do
+        # if package is not installed
+        if ${dependencies[$package]} > /dev/null 2>&1; then
+            if ! sudo apt remove -y "$package"; then
+            handle_error "Could not uninstall $package. Please uninstall it manually"
+            fi
+        fi
+    done
 
     # Check if minecraft is installed, and uninstall it
+    echo "Removing minecraft"
+    if [ -d "$INSTALL_DIR/minecraft" ]; then
+        uninstall_minecraft
+    fi
 
     # Check if spigot is installed, and uninstall it
-
-    # TODO if something goes wrong then call function handle_error
-
+    echo "Removing spigot"
+    if [ -d "$INSTALL_DIR/spigotserver" ]; then
+        uninstall_spigotserver
+    fi
+    if [ -d "$INSTALL_DIR" ]; then
+        if ! rm -rf "$INSTALL_DIR"; then
+            handle_error "Unable to remove installation directory ($INSTALL_DIR). Please remove it manually."
+        fi
+    fi
+    echo "Everything has been removed"
 }
 
 function setup_check() {
     if [[ ! -d "$INSTALL_DIR" ]]; then
         handle_error "File structure is missing. Please run the setup first."
     fi
-    if ! gdebi --version > /dev/null || ! wget --version > /dev/null || ! make --version > /dev/null || ! curl --version > /dev/null || ! dpkg -s openjdk-17-jre >/dev/null 2>&1 || ! dpkg -s ufw >/dev/null 2>&1 || ! dpkg -s screen >/dev/null 2>&1; then
-        handle_error "Some dependencies are missing.  Please run the setup first."
-    fi
+    for package in ${!dependencies[@]}; do
+        # if package is not installed
+        if ! ${dependencies[$package]} > /dev/null 2>&1; then
+            handle_error "$package has not been installed. Please run setup first or install manually"
+        fi
+    done
 }
 
 # TEST
@@ -513,6 +558,7 @@ function test_spigotserver() {
     # Do NOT remove next line!
     echo "function test_spigotserver"    
 
+    # Stopping the spigot server service, to stop overlapping ports
     # TODO Start the spigotserver
 
     # TODO Check if spigotserver is working correctly
@@ -529,9 +575,9 @@ function setup() {
     echo "function setup"    
 
     # TODO Install required packages with APT     
-    if ! install_with_apt "gdebi" || ! install_with_apt "make" || ! install_with_apt "wget" || ! install_with_apt "curl" || ! install_with_apt "openjdk-17-jre" || ! install_with_apt "ufw" || ! install_with_apt "screen"; then
-        handle_error "Could not install required packages"
-    fi
+    for package in ${!dependencies[@]}; do
+        install_with_apt "$package"
+    done
 
     # Create the installation directory
     if [ -d "$INSTALL_DIR" ]; then
@@ -594,6 +640,10 @@ function main() {
                     ;;
                 --uninstall)
                     uninstall_spigotserver
+                    exit 0
+                    ;;
+                --test)
+                    test_spigotserver
                     exit 0
                     ;;
                 *)
