@@ -88,7 +88,7 @@ function install_package() {
         fi
 
         # If minecraft has not been installed yet, create the installation directory
-        if ! mkdir "$INSTALL_DIR/minecraft"; then
+        if ! mkdir -p "$INSTALL_DIR/minecraft"; then
             handle_error "Could not create Minecraft installation directory."
         fi
         echo "Minecraft installation directory created."
@@ -108,7 +108,7 @@ function install_package() {
         if [ -d "$INSTALL_DIR/spigotserver" ]; then
             handle_error "Spigotserver installation directory already exists."
         fi
-        if ! mkdir "$INSTALL_DIR/spigotserver"; then
+        if ! mkdir -p "$INSTALL_DIR/spigotserver"; then
             handle_error "Could not create Spigotserver installation directory."
         fi
 
@@ -141,7 +141,10 @@ function install_package() {
 
         cd "$current_dir"
         
-        
+        echo "Accepting EULA"
+        if ! echo "eula=true" > "$INSTALL_DIR/spigotserver/eula.txt"
+            handle_error "Unable to accept eula." "rollback_spigotserver"
+        fi
         echo "Creating service..."
         create_spigotservice
         echo "Service created successfully."
@@ -149,14 +152,7 @@ function install_package() {
         configure_spigotserver
         echo "Spigot server installation completed successfully."
         exit 0
-
-        # TODO SPIGOTSERVER 
-            # Copy spigotstart.sh to ${HOME}/apps/spigotserver and provide the user with execute permission
-            # spigotserver will be stored into ${HOME}/apps/spigotserver
-        exit 0
     fi
-    # TODO if something goes wrong then call function handle_error
-
 }
 
 function cleanup_buildtools() {
@@ -268,7 +264,6 @@ function create_spigotservice() {
         handle_error "Could not start the service" "rollback_spigotserver"
     fi
     # TODO if something goes wrong then call function handle_error
-
 }
 
 # ERROR HANDLING
