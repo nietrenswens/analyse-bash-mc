@@ -123,13 +123,14 @@ function install_package() {
             handle_error "Unable to download buildtools, canceling installation..." "rollback_spigotserver"
         fi
         echo "Compiling server binary..."
-        current_dir=${pwd}
+        current_dir=$(pwd)
         cd "$INSTALL_DIR/spigotserver"
         if ! java -jar "$INSTALL_DIR/spigotserver/BuildTools.jar" --rev latest --output-dir "$INSTALL_DIR/spigotserver" --final-name spigot.jar; then
             handle_error "Unable to compile spigotserver" "cd $current_dir && rollback_spigotserver"
         fi
         echo "Cleaning up buildtools..."
         cleanup_buildtools
+        echo "$current_dir"
         cd "$current_dir"
         echo "Binary compiled successfully. Copying start script..." 
         if ! cp spigotstart.sh "$INSTALL_DIR/spigotserver"; then
