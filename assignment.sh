@@ -106,7 +106,6 @@ function install_package() {
             handle_error "Could not install Minecraft" "rollback_minecraft"
         fi
         echo "Minecraft installed successfully."
-        exit 0
     fi
     if [[ "$to_install" == "spigotserver" ]]; then
         echo "Starting spigot installation"
@@ -119,19 +118,19 @@ function install_package() {
 
         # From here, we might need to rollback
         echo "Downloading buildtools..."
-        if ! wget -O "$INSTALL_DIR/spigotserver/BuildTools.jar" $BUILDTOOLS_URL; then
+        if ! wget -O "$INSTALL_DIR/spigotserver/BuildTools.jar" "$BUILDTOOLS_URL"; then
             handle_error "Unable to download buildtools, canceling installation..." "rollback_spigotserver"
         fi
         echo "Compiling server binary..."
         current_dir=$(pwd)
-        cd "$INSTALL_DIR/spigotserver"
+        cd "$INSTALL_DIR/spigotserver" || handle_error "Unable to compile spigotserver" "cd $current_dir && rollback_spigotserver"
         if ! java -jar "$INSTALL_DIR/spigotserver/BuildTools.jar" --rev latest --output-dir "$INSTALL_DIR/spigotserver" --final-name spigot.jar; then
             handle_error "Unable to compile spigotserver" "cd $current_dir && rollback_spigotserver"
         fi
         echo "Cleaning up buildtools..."
         cleanup_buildtools
         echo "$current_dir"
-        cd "$current_dir"
+        cd "$current_dir" || handle_error "Error while moving back to work directory" "rollback_spigotserver"
         echo "Binary compiled successfully. Copying start script..." 
         if ! cp spigotstart.sh "$INSTALL_DIR/spigotserver"; then
             handle_error "Unable to copy start script" "rollback_spigotserver"
@@ -144,11 +143,11 @@ function install_package() {
 
         echo "Starting server to generate server.properties..."
         current_dir=$(pwd)
-        cd "$INSTALL_DIR/spigotserver"
+        cd "$INSTALL_DIR/spigotserver" || handle_error "Error while moving to server directory" "rollback_spigotserver"
 
         ./spigotstart.sh
 
-        cd "$current_dir"
+        cd "$current_dir" || handle_error "Error while moving back to work directory" "rollback_spigotserver"
         
         echo "Accepting EULA"
         if ! echo "eula=true" > "$INSTALL_DIR/spigotserver/eula.txt"; then
@@ -160,7 +159,6 @@ function install_package() {
         echo "Moving on to configuring the server..."
         configure_spigotserver
         echo "Spigot server installation completed successfully."
-        exit 0
     fi
 }
 
@@ -412,7 +410,8 @@ function uninstall_minecraft {
 # Make sure to use sudo only if needed
 function uninstall_spigotserver {
     # Do NOT remove next line!
-    echo "uninstall_spigotserver"  
+    echo "uninstall_spigotserver" 
+    setup_check 
     if [ ! -d "$INSTALL_DIR/spigotserver" ]; then
         handle_error "Spigot has not been installed"
     fi
@@ -424,7 +423,6 @@ function uninstall_spigotserver {
         fi
     fi
     echo "Spigot server has been uninstalled"
-    exit 0
 }
 
 # TODO complete the implementation of this function
@@ -461,10 +459,9 @@ function uninstall_spigotservice {
 function remove() {
     # Do NOT remove next line!
     echo "function remove"
-
     # TODO Remove all packages and dependencies
     echo "Removing dependencies"
-    for package in ${!dependencies[@]}; do
+    for package in "${!dependencies[@]}"; do
         # if package is not installed
         if ${dependencies[$package]} > /dev/null 2>&1; then
             if ! sudo apt remove -y "$package"; then
@@ -496,7 +493,7 @@ function setup_check() {
     if [[ ! -d "$INSTALL_DIR" ]]; then
         handle_error "File structure is missing. Please run the setup first."
     fi
-    for package in ${!dependencies[@]}; do
+    for package in "${!dependencies[@]}"; do
         # if package is not installed
         if ! ${dependencies[$package]} > /dev/null 2>&1; then
             handle_error "$package has not been installed. Please run setup first or install manually"
@@ -552,23 +549,77 @@ function test_minecraft() {
     echo "Minecraft stopped successfully"
     echo "Test completed successfully"
     echo "Minecraft is working correctly"
-    exit 0
 }
 
 function test_spigotserver() {
     # Do NOT remove next line!
     echo "function test_spigotserver"    
+    setup_check
+    if [[ ! -d "$INSTALL_DIR/spigotserver" ]]; then
+        handle_error "Spigot has not been installed. Nothing to test"
+    fi
+
+    # TODO Start the spigotserver
+    if [[ ! -f "$INSTALL_DIR/spigotserver/spigotstart.sh" ]]; then
+        handle_error "Could not find spigotstart. Canceling test"
+    fi
 
     # Stopping the spigot server service, to stop overlapping ports
-    # TODO Start the spigotserver
+    echo "Checking if spigot service is running"
+    spigot_service_status=$(systemctl status spigot)
+    if [[ $spigot_service_status == *"(running)"* ]]; then
+        echo "Stopping spigot service"
+        if ! sudo systemctl stop spigot; then
+            handle_error "Could not stop spigot-service. Canceling test"
+        fi
+        sleep 5
+    fi
 
+    cd "$INSTALL_DIR/spigotserver" || handle_error "Could not access spigotserver directory"
+    java -jar spigot.jar -nogui > /dev/null &
+    spigot_pid=$!
+    echo "Starting minecraft server and waiting 15 seconds"
+    sleep 15
     # TODO Check if spigotserver is working correctly
         # e.g. by checking if the API responds
         # if you need curl or aNOTher tool, you have to install it first
-
+    curl -s "localhost:$SPIGOTSERVER_PORT"
+    curl_result="$?"
+    if [[ ! "$curl_result" == "52" ]]; then
+        if ps -ef | grep $spigot_pid | grep -v grep > /dev/null; then
+            kill -9 "$spigot_pid"
+        fi
+        handle_error "Spigot does not seem to be working correctly" 
+    fi
+    echo "Stopping spigot gradually"
     # TODO Stop the spigotserver after testing
         # use the kill signal only if the spigotserver canNOT be stopped normally
+    if ps -ef | grep $spigot_pid | grep -v grep > /dev/null; then
+        # If it's still running, send SIGTERM to gracefully stop it
+        kill $spigot_pid &
+        echo "Attempting to stop spigot gracefully"
+    else
+        handle_error "Spigot was not running and thus not working correctly"
+    fi
 
+    echo "Waiting 10 seconds for spigot to stop"
+    sleep 10
+    # If the process is still running, send SIGKILL to forcefully stop it
+    if ps -ef | grep $spigot_pid | grep -v grep > /dev/null; then
+        kill -9 $spigot_pid
+        handle_error "Forcibly stopping Spigot... Spigot is not working correctly"
+    fi
+
+    echo "Spigot stopped successfully"
+    if [[ $spigot_service_status == *"(running)"* ]]; then
+        echo "Starting spigot service"
+        if ! sudo systemctl stop spigot; then
+            handle_error "Could not stop spigot-service. Canceling test"
+        fi
+        sleep 5
+    fi
+    echo "Test completed successfully"
+    echo "Spigot is working correctly"
 }
 
 function setup() {
@@ -576,7 +627,7 @@ function setup() {
     echo "function setup"    
 
     # TODO Install required packages with APT     
-    for package in ${!dependencies[@]}; do
+    for package in "${!dependencies[@]}"; do
         install_with_apt "$package"
     done
 
